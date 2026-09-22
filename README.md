@@ -6,7 +6,7 @@
 
 회원의 예약부터 출석, 수강권 유효기간, 재등록 안내까지 연결합니다.
 
-(https://elanoracademy.com/)  
+https://elanoracademy.com/booking
 
 [아키텍처](#architecture) · [설계와 문제 해결](#engineering) · [개발 환경](docs/DEVELOPMENT.md)
 
