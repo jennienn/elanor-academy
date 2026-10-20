@@ -2,11 +2,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { cycleStatus, type CycleLike } from "@/lib/business-rules";
-import { deliverCycleNotification } from "@/lib/notification-service";
+import { automaticNotificationDate, deliverCycleNotification } from "@/lib/notification-service";
 import { notificationsEnabled } from "@/lib/notification-config";
 
 // Vercel Cron이 매일 호출. CRON_SECRET 환경변수를 설정해두면 Vercel이 자동으로
 // `Authorization: Bearer {CRON_SECRET}` 헤더를 붙여 GET 요청을 보낸다 (Vercel 공식 규약).
+// 오전 10시대에 접수하고 실제 오전 11:30 발송은 SOLAPI 예약 기능에 맡긴다.
 export const dynamic = "force-dynamic";
 
 interface NotificationCandidate {
@@ -45,6 +46,13 @@ export async function GET(request: NextRequest) {
   }
   if (!notificationsEnabled()) {
     return NextResponse.json({ disabled: true, checked: 0, sent: 0, failed: 0, skipped: 0 });
+  }
+
+  if (!automaticNotificationDate()) {
+    return NextResponse.json(
+      { error: { code: "INVALID_SCHEDULED_DATE", message: "오늘 11시 30분 예약 접수 시간이 지났습니다." } },
+      { status: 503 }
+    );
   }
 
   const supabase = createSupabaseAdminClient();
@@ -86,7 +94,10 @@ export async function GET(request: NextRequest) {
     }
 
     const result = await deliverCycleNotification(supabase, row.id, "auto");
-    const finalStatus = result.status === "skipped" ? "sent" : result.status;
+    // 시간 초과 건은 다음 실행에서 최신 대상/횟수로 다시 판정한다. 즉시 발송하지 않는다.
+    const finalStatus = result.status === "failed" && result.code === "INVALID_SCHEDULED_DATE"
+      ? "pending"
+      : result.status === "skipped" ? "sent" : result.status;
     if (finalStatus === "sent") sent++;
     else failed++;
 

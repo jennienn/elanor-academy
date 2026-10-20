@@ -1,15 +1,21 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { formatDisplayDate, remainOf, WEEKS_BY_PLAN } from "./business-rules";
+import { formatDisplayDate, koreaDateString, remainOf, WEEKS_BY_PLAN } from "./business-rules";
 import { notificationsEnabled } from "./notification-config";
 import { sendSolapiAlimtalk } from "./solapi";
 
 export type NotificationTrigger = "auto" | "registration" | "manual_renew" | "manual_resend";
 export type NotificationDeliveryResult =
+  // sent는 SOLAPI 접수 성공이며 예약 건의 실제 발송 완료를 뜻하지 않는다.
   | { status: "sent"; providerMessageId: string | null }
   | { status: "failed"; code: string; message: string }
   | { status: "disabled"; reason: string }
   | { status: "skipped"; reason: string };
+
+export function automaticNotificationDate(now: Date = new Date()): string | null {
+  const scheduledDate = `${koreaDateString(now)}T11:30:00+09:00`;
+  return Date.parse(scheduledDate) - now.getTime() > 10 * 60 * 1000 ? scheduledDate : null;
+}
 
 export interface NotificationCycleRow {
   id: string;
@@ -82,8 +88,9 @@ export function messageFor(row: NotificationCycleRow, trigger: NotificationTrigg
 
 • 수강 클래스: ${className}
 • 만료 예정일: ${dateOrPending(endDate)}
+• 사용 가능 횟수: ${remainOf({ totalCount: row.total_count, usedCount: row.used_count })}회
 
-다음 달 수강 인원 확인을 위해, 1주일 이내(만료일 전까지) 재등록 및 결제 진행을 부탁드립니다.
+이용에 불편함이 없으시도록 만료 예정일을 미리 확인해 주시기 바랍니다.
 
 궁금하신 점은 언제든 편하게 문의해 주세요! 오늘도 좋은 하루 보내세요. 💛`;
   }
@@ -135,6 +142,7 @@ export function variablesFor(
     return {
       ...common,
       "#{수업명}": row.enrollments.classes?.name ?? "단체레슨",
+      "#{잔여횟수}": String(remainOf({ totalCount: row.total_count, usedCount: row.used_count })),
       "#{만료예정일}": dateOrPending(endDate)
     };
   }
@@ -181,12 +189,17 @@ async function deliverCycleNotificationInternal(
   }
 
   const row = data as unknown as NotificationCycleRow;
+  const scheduledDate = trigger === "auto" ? automaticNotificationDate() : undefined;
+  if (scheduledDate === null) {
+    return { status: "failed", code: "INVALID_SCHEDULED_DATE", message: "오늘 11시 30분 예약 접수 시간이 지났습니다." };
+  }
   const message = messageFor(row, trigger);
   const result = await sendSolapiAlimtalk({
     to: row.enrollments.members.phone,
     text: message,
     templateId: templateIdFor(row, trigger),
-    variables: variablesFor(row, trigger)
+    variables: variablesFor(row, trigger),
+    scheduledDate
   });
   const now = new Date().toISOString();
 

@@ -17,6 +17,8 @@ const originalEnv = Object.fromEntries(ENV_KEYS.map((key) => [key, process.env[k
 
 describe("SOLAPI 알림톡 클라이언트", () => {
   beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-02T10:00:00+09:00"));
     process.env.SOLAPI_API_KEY = "test-api-key";
     process.env.SOLAPI_API_SECRET = "test-api-secret";
     process.env.KAKAO_CHANNEL_ID = "test-pf-id";
@@ -32,6 +34,7 @@ describe("SOLAPI 알림톡 클라이언트", () => {
       else process.env[key] = value;
     }
     vi.restoreAllMocks();
+    vi.useRealTimers();
   });
 
   it("한국 휴대전화 번호에서 구분 문자를 제거하고 잘못된 번호는 거부한다", () => {
@@ -73,9 +76,10 @@ describe("SOLAPI 알림톡 클라이언트", () => {
     expect(fetcher).not.toHaveBeenCalled();
   });
 
-  it("알림톡 요청을 접수하고 provider message ID를 반환한다", async () => {
+  it.each([undefined, "2026-10-02T11:30:00+09:00"])("알림톡 즉시/예약 요청을 접수한다 (%s)", async (scheduledDate) => {
     const fetcher = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
       const body = JSON.parse(String(init?.body)) as {
+        scheduledDate?: string;
         messages: Array<{
           to: string;
           from: string;
@@ -83,6 +87,8 @@ describe("SOLAPI 알림톡 클라이언트", () => {
           kakaoOptions: { pfId: string; templateId: string; disableSms: boolean };
         }>;
       };
+      if (scheduledDate) expect(body.scheduledDate).toBe(scheduledDate);
+      else expect(body).not.toHaveProperty("scheduledDate");
       expect(init?.headers).toEqual(
         expect.objectContaining({ Authorization: expect.stringMatching(/^HMAC-SHA256 apiKey=test-api-key/) })
       );
@@ -113,12 +119,25 @@ describe("SOLAPI 알림톡 클라이언트", () => {
           to: "010-1234-5678",
           text: "테스트",
           templateId: "test-template",
-          variables: { "#{회원명}": "테스트회원" }
+          variables: { "#{회원명}": "테스트회원" },
+          scheduledDate
         },
         { fetcher }
       )
     ).resolves.toEqual({ ok: true, groupId: "group-1", messageId: "message-1" });
   });
+
+  it.each(["invalid", "", "2026-10-02T09:00:00+09:00", "2026-10-02T10:10:00+09:00"])(
+    "잘못되거나 임박한 예약을 즉시 발송하지 않는다 (%s)", async (scheduledDate) => {
+      const fetcher = vi.fn();
+      const result = await sendSolapiAlimtalk(
+        { to: "01000000001", text: "테스트", templateId: "template", variables: {}, scheduledDate },
+        { fetcher }
+      );
+      expect(result).toMatchObject({ ok: false, code: "INVALID_SCHEDULED_DATE" });
+      expect(fetcher).not.toHaveBeenCalled();
+    }
+  );
 
   it("SOLAPI가 등록 실패 목록을 반환하면 성공으로 기록하지 않는다", async () => {
     const fetcher = vi.fn(async () =>

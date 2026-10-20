@@ -94,7 +94,7 @@ function PackageTag() {
 }
 
 function NotiBadge({ status }: { status: Cycle["notify_status"] }) {
-  if (status === "sent") return <span className="noti sent">✓ 발송됨</span>;
+  if (status === "sent") return <span className="noti sent">✓ 발송 접수됨</span>;
   if (status === "failed") return <span className="noti failed">⚠ 발송 실패</span>;
   if (status === "pending") return <span className="noti none">발송 대기</span>;
   return <span className="noti none">-</span>;

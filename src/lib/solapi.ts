@@ -8,6 +8,7 @@ export interface SolapiAlimtalkInput {
   text: string;
   templateId: string;
   variables: Record<string, string>;
+  scheduledDate?: string;
 }
 
 export type SolapiSendResult =
@@ -85,6 +86,12 @@ export async function sendSolapiAlimtalk(
     return { ok: false, code: "TEMPLATE_NOT_CONFIGURED", message: "알림톡 템플릿 ID가 설정되지 않았습니다." };
   }
 
+  // SOLAPI는 과거 예약 시간을 즉시 발송으로 처리하므로 전송 직전에 차단한다.
+  if (input.scheduledDate !== undefined &&
+      !(Date.parse(input.scheduledDate) - Date.now() > 10 * 60 * 1000)) {
+    return { ok: false, code: "INVALID_SCHEDULED_DATE", message: "예약 발송은 현재보다 10분 이후여야 합니다." };
+  }
+
   try {
     const response = await (options.fetcher ?? fetch)(SOLAPI_SEND_URL, {
       method: "POST",
@@ -107,6 +114,7 @@ export async function sendSolapiAlimtalk(
             }
           }
         ],
+        scheduledDate: input.scheduledDate,
         strict: true,
         allowDuplicates: false,
         showMessageList: true
