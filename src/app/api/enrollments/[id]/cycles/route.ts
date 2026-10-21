@@ -8,7 +8,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
     .from("enrollment_cycles")
-    .select("*, payments(*)")
+    .select("*, payments(*), cycle_schedules(schedule_id, class_schedules(weekday))")
     .eq("enrollment_id", id)
     .order("created_at", { ascending: false });
   if (error) return NextResponse.json({ error: { code: "DB_ERROR", message: error.message } }, { status: 500 });

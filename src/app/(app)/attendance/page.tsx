@@ -54,6 +54,7 @@ interface AttendanceItem {
   remain: number;
   total: number;
   scheduleIds: number[];
+  selectedScheduleId?: number;
   attendanceLogId: number | null;
   attended: boolean;
   needsPayment: boolean;
@@ -114,7 +115,8 @@ export default function AttendancePage() {
         ? await apiFetch<{ schedules: ClassSchedule[] }>(`/api/classes/${cls.id}/schedules`)
         : { schedules: [] };
       if (requestId !== loadRequestId.current) return;
-      const matched = schedulesRes.schedules.find((s) => s.weekday === weekday) ?? null;
+      const matching = schedulesRes.schedules.filter((s) => s.weekday === weekday);
+      const matched = matching[0] ?? null;
       setTodaySchedule(matched);
 
       if (!matched) {
@@ -127,7 +129,7 @@ export default function AttendancePage() {
         `/api/attendance?className=${encodeURIComponent(className)}&date=${date}`
       );
       if (requestId !== loadRequestId.current) return;
-      const filtered = res.items.filter((i) => i.scheduleIds.includes(matched.id));
+      const filtered = res.items.map(i => ({ ...i, selectedScheduleId: matching.find(s => i.scheduleIds.includes(s.id))?.id })).filter(i => i.selectedScheduleId != null);
       setItems(filtered);
       setChecked(new Set(filtered.filter((i) => i.attended).map((i) => i.cycleId)));
     } catch (e: unknown) {
@@ -162,7 +164,7 @@ export default function AttendancePage() {
     try {
       const records = items.map((i) => ({
         cycleId: i.cycleId,
-        scheduleId: todaySchedule.id,
+        scheduleId: i.selectedScheduleId!,
         attended: checked.has(i.cycleId)
       }));
       await apiFetch("/api/attendance", { method: "PUT", body: JSON.stringify({ date, records }) });

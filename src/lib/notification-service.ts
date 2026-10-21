@@ -20,7 +20,8 @@ export function automaticNotificationDate(now: Date = new Date()): string | null
 export interface NotificationCycleRow {
   id: string;
   status: "active" | "completed" | "expired";
-  plan: 4 | 8 | 12 | null;
+  plan: number | null;
+  product_name?: string | null;
   base_count: number;
   total_count: number;
   used_count: number;
@@ -54,13 +55,13 @@ function dateOrPending(value: string | null): string {
 
 function validWeeksFor(row: NotificationCycleRow): number {
   if (row.valid_weeks) return row.valid_weeks;
-  if (row.plan) return WEEKS_BY_PLAN[row.plan];
+  if (row.plan) return WEEKS_BY_PLAN[row.plan as keyof typeof WEEKS_BY_PLAN] ?? 0;
   return row.enrollments.enrollment_packages?.valid_weeks ?? 0;
 }
 
 export function messageFor(row: NotificationCycleRow, trigger: NotificationTrigger): string {
   const memberName = row.enrollments.members.name;
-  const className = row.enrollments.classes?.name ?? "단체레슨";
+  const className = row.product_name ?? row.enrollments.classes?.name ?? "단체레슨";
   if (trigger === "auto") {
     if (row.enrollments.kind === "solo") {
       return `[엘라노르 댄스학원] 개인레슨 잔여 횟수 안내
@@ -141,7 +142,7 @@ export function variablesFor(
     const endDate = row.enrollments.package_id ? row.valid_end_date : row.next_due_date;
     return {
       ...common,
-      "#{수업명}": row.enrollments.classes?.name ?? "단체레슨",
+      "#{수업명}": row.product_name ?? row.enrollments.classes?.name ?? "단체레슨",
       "#{잔여횟수}": String(remainOf({ totalCount: row.total_count, usedCount: row.used_count })),
       "#{만료예정일}": dateOrPending(endDate)
     };
@@ -156,7 +157,7 @@ export function variablesFor(
   const endDate = row.enrollments.package_id ? row.valid_end_date : row.next_due_date;
   return {
     ...common,
-    "#{수업명}": row.enrollments.classes?.name ?? "단체레슨",
+    "#{수업명}": row.product_name ?? row.enrollments.classes?.name ?? "단체레슨",
     "#{수강시작일}": formatDisplayDate(row.payment_date),
     "#{수강종료일}": dateOrPending(endDate)
   };
@@ -180,7 +181,7 @@ async function deliverCycleNotificationInternal(
   const { data, error } = await supabase
     .from("enrollment_cycles")
     .select(
-      "id, status, plan, base_count, total_count, used_count, payment_date, valid_end_date, valid_weeks, next_due_date, enrollments!inner(kind, status, package_id, members(name, phone), classes(name), enrollment_packages(valid_weeks))"
+      "id, status, plan, base_count, total_count, used_count, payment_date, valid_end_date, valid_weeks, product_name, next_due_date, enrollments!inner(kind, status, package_id, members(name, phone), classes(name), enrollment_packages(valid_weeks))"
     )
     .eq("id", cycleId)
     .single();

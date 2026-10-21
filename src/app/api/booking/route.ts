@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
   const db = createSupabaseAdminClient();
   const { data, error } = await db
     .from("enrollment_cycles")
-    .select("id,plan,total_count,used_count,payment_date,valid_end_date,valid_weeks,status,enrollments!inner(member_id,status,members!inner(name))")
+    .select("id,plan,total_count,used_count,payment_date,valid_end_date,valid_weeks,duration_minutes,product_name,status,enrollments!inner(member_id,status,members!inner(name))")
     .eq("id", auth.cycleId)
     .eq("status", "active")
     .single();
@@ -42,32 +42,32 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: { message: "수강권 접근 권한이 없습니다." } }, { status: 403 });
   }
 
-  const plan = data.plan as 4 | 8 | 12 | null;
+  const plan = data.plan as number | null;
   const validEndDate = data.valid_end_date ?? soloBookingValidEnd(data.payment_date, plan, data.valid_weeks ?? undefined);
   const firstBookableDate = [todayInKorea(), data.payment_date].sort().at(-1)!;
   const date = request.nextUrl.searchParams.get("date");
   let unavailable: number[] = [];
 
   if (date) {
-    const [{ data: rows }, { data: blocks }] = await Promise.all([
-      db.from("solo_bookings").select("start_minute").eq("booking_date", date).eq("status", "confirmed"),
-      db.from("solo_booking_blocks").select("start_minute,end_minute").eq("block_date", date)
+    const [{ data: rows, error: rowsError }, { data: blocks, error: blocksError }, { data: groups, error: groupsError }] = await Promise.all([
+      db.from("solo_bookings").select("start_minute,duration_minutes").eq("booking_date", date).eq("status", "confirmed"),
+      db.from("solo_booking_blocks").select("start_minute,end_minute").eq("block_date", date),
+      db.rpc("group_schedule_ranges", { p_date: date })
     ]);
-    unavailable = (rows ?? []).flatMap((row) => [row.start_minute - 30, row.start_minute, row.start_minute + 30]);
+    if (rowsError || blocksError || groupsError) return NextResponse.json({ error: { message: "예약 가능 시간을 불러오지 못했습니다." } }, { status: 500 });
+    const ranges = [
+      ...(rows ?? []).map(row => ({ start_minute: row.start_minute, end_minute: row.start_minute + row.duration_minutes })),
+      ...(blocks ?? []), ...(groups ?? []) as { start_minute: number; end_minute: number }[]
+    ];
     for (let slot = 600; slot <= 1320; slot += 30) {
-      if ((blocks ?? []).some((block) => slot < block.end_minute && slot + 60 > block.start_minute)) {
-        unavailable.push(slot);
-      }
+      if (slot + data.duration_minutes > 1380 || ranges.some(range => slot < range.end_minute && slot + data.duration_minutes > range.start_minute)) unavailable.push(slot);
     }
-    const day = new Date(`${date}T12:00:00+09:00`).getDay();
-    if (day >= 1 && day <= 4) unavailable.push(1170, 1200, 1230);
-    if (day === 2 || day === 4) unavailable.push(630, 660, 690);
     unavailable.push(...advanceNoticeUnavailableSlots(date, todayInKorea(), koreaMinutesNow()));
   }
 
   const { data: bookings } = await db
     .from("solo_bookings")
-    .select("id,booking_date,start_minute,status,cancellation_charged")
+    .select("id,booking_date,start_minute,duration_minutes,status,cancellation_charged")
     .eq("cycle_id", auth.cycleId)
     .order("booking_date")
     .order("start_minute");
@@ -76,6 +76,8 @@ export async function GET(request: NextRequest) {
     member: { name: enrollment.members.name },
     cycle: {
       plan: data.plan,
+      product_name: data.product_name,
+      duration_minutes: data.duration_minutes,
       payment_date: data.payment_date,
       valid_end_date: validEndDate,
       first_bookable_date: firstBookableDate,

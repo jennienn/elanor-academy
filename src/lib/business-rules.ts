@@ -13,7 +13,7 @@ export interface CycleLike {
   enrollmentStatus: "active" | "ended"; // 부모 enrollment의 상태
   cycleStatus: "active" | "completed" | "expired";
   // solo
-  plan?: 4 | 8 | 12 | null;
+  plan?: number | null;
   totalCount: number;
   usedCount: number;
   validEndDate?: string | null; // ISO date, 첫 수업 전이면 null

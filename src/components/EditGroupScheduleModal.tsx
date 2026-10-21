@@ -9,6 +9,7 @@ const WEEKDAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
 
 interface ClassSchedule {
   id: number;
+  active: boolean;
   weekday: number;
   start_time: string | null;
   curriculum_group: string | null;
@@ -40,10 +41,10 @@ export function EditGroupScheduleModal({
   useEffect(() => {
     setLoading(true);
     apiFetch<{ schedules: ClassSchedule[] }>(`/api/classes/${classId}/schedules`)
-      .then((res) => setSchedules(res.schedules))
+      .then((res) => setSchedules(res.schedules.filter(s => s.active || currentScheduleIds.includes(s.id))))
       .catch(() => setError("요일 목록을 불러오지 못했습니다."))
       .finally(() => setLoading(false));
-  }, [classId]);
+  }, [classId, currentScheduleIds]);
 
   function toggle(id: number) {
     setScheduleIds((prev) => (prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]));
@@ -88,7 +89,7 @@ export function EditGroupScheduleModal({
                 style={{ padding: "6px 12px" }}
                 onClick={() => toggle(s.id)}
               >
-                {WEEKDAY_LABELS[s.weekday]}
+                {WEEKDAY_LABELS[s.weekday]} {s.start_time?.slice(0, 5)}{!s.active ? " (기존)" : ""}
               </button>
             ))}
             {schedules.length === 0 && (

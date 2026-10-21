@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 interface NotificationCandidate {
   id: string;
   status: "active" | "completed" | "expired";
-  plan: 4 | 8 | 12 | null;
+  plan: number | null;
   total_count: number;
   used_count: number;
   valid_end_date: string | null;

@@ -93,8 +93,8 @@ export function Modal({
           overflowY: "auto"
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-          <h3 id={titleId} style={{ margin: "0 0 12px", fontSize: 16, fontWeight: 600 }}>{title}</h3>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 12 }}>
+          <h3 id={titleId} style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>{title}</h3>
           <button type="button" className="secondary modal-close" aria-label={`${title} 닫기`} onClick={onClose}>×</button>
         </div>
         {children}

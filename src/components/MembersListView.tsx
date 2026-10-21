@@ -12,7 +12,10 @@ type KindFilter = "전체" | "개인" | "단체";
 interface MemberCycle {
   id: string;
   status: "active" | "completed" | "expired";
-  plan: 4 | 8 | 12 | null;
+  plan: number | null;
+  product_name: string | null;
+  duration_minutes: number;
+  valid_weeks: number | null;
   total_count: number;
   used_count: number;
   valid_end_date: string | null;
@@ -72,10 +75,10 @@ function CurrentEnrollmentCell({ member }: { member: MemberItem }) {
           <span key={enrollment.id}>
             {enrollment.kind === "solo" ? (
               <span className={cycle?.plan ? `badge plan-${cycle.plan}` : "badge mute"}>
-                개인 {cycle?.plan ?? cycle?.total_count ?? "-"}회권
+                {cycle?.product_name ?? `개인 ${cycle?.plan ?? cycle?.total_count ?? "-"}회권`}
               </span>
             ) : (
-              <span className="badge type-group">단체 {enrollment.classes?.name ?? "-"}</span>
+              <span className="badge type-group">단체 {cycle?.product_name ?? enrollment.classes?.name ?? "-"}</span>
             )}
             {enrollment.package_id != null && (
               <span className="badge mute" style={{ marginLeft: 6 }}>

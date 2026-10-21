@@ -10,13 +10,14 @@ type Booking = {
   id: string;
   booking_date: string;
   start_minute: number;
+  duration_minutes: number;
   status: "confirmed" | "completed" | "cancelled";
   cancellation_charged: boolean;
   late_cancellation: boolean;
 };
 type Info = {
   member: { name: string };
-  cycle: { plan: number; payment_date: string; valid_end_date: string; first_bookable_date: string; remain: number };
+  cycle: { plan: number; product_name: string | null; duration_minutes: number; payment_date: string; valid_end_date: string; first_bookable_date: string; remain: number };
   unavailable: number[];
   bookings: Booking[];
 };
@@ -215,7 +216,7 @@ export default function BookingPage() {
           <li key={booking.id}>
             <div>
               <strong>{displayDate(booking.booking_date)}</strong>
-              <span>{formatTime(booking.start_minute)} · {statusLabel[booking.status]}{booking.cancellation_charged ? " · 횟수 차감" : ""}</span>
+              <span>{formatTime(booking.start_minute)} ~ {formatTime(booking.start_minute + booking.duration_minutes)} · {statusLabel[booking.status]}{booking.cancellation_charged ? " · 횟수 차감" : ""}</span>
             </div>
             {booking.status === "confirmed" && (
               <button type="button" onClick={() => cancel(booking)}>취소</button>
@@ -234,7 +235,7 @@ export default function BookingPage() {
       </header>
 
       <section className="reservation-member">
-        <div><h1>{info.member.name}님, 안녕하세요</h1><p>개인레슨 {info.cycle.plan}회권 이용 중</p></div>
+        <div><h1>{info.member.name}님, 안녕하세요</h1><p>{info.cycle.product_name ?? `개인레슨 ${info.cycle.plan}회권`} 이용 중 · {info.cycle.duration_minutes}분</p></div>
         <div className="reservation-balance"><span>남은 횟수</span><strong>{info.cycle.remain}회</strong></div>
         <dl><div><dt>결제일</dt><dd>{info.cycle.payment_date}</dd></div><div><dt>이용기간</dt><dd>~ {info.cycle.valid_end_date}</dd></div></dl>
       </section>

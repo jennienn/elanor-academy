@@ -42,6 +42,17 @@ const NAV_ITEMS = [
     )
   },
   {
+    href: "/products",
+    label: "수강권 관리",
+    ready: true,
+    icon: (
+      <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M4 5h16a1 1 0 0 1 1 1v3a3 3 0 0 0 0 6v3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-3a3 3 0 0 0 0-6V6a1 1 0 0 1 1-1Z" />
+        <path d="M15 5v3m0 3v2m0 3v3" />
+      </svg>
+    )
+  },
+  {
     href: "/members",
     label: "회원",
     ready: true,

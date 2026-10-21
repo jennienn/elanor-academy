@@ -21,6 +21,7 @@ const attendanceDate = (() => {
   throw new Error("출석 테스트 날짜를 계산하지 못했습니다.");
 })();
 let classId: number | null = null;
+let productId: number | null = null;
 let mondayScheduleId: number | null = null;
 let groupMemberId: number | null = null;
 
@@ -58,6 +59,9 @@ test.beforeAll(async () => {
     ])
     .select("id, weekday");
   if (schedules.error) throw schedules.error;
+  const product = await admin.from("lesson_products").insert({ kind: "group", name: className, class_id: classId, session_count: 8, valid_weeks: 5, price: 160000, duration_minutes: 60 }).select("id").single();
+  if (product.error) throw product.error;
+  productId = product.data.id;
   mondayScheduleId = schedules.data!.find((schedule) => schedule.weekday === 1)!.id;
 });
 
@@ -65,6 +69,7 @@ test.afterAll(async () => {
   if (!env) return;
   const admin = createClient(env.url, env.serviceRoleKey, { auth: { persistSession: false } });
   for (const id of createdMemberIds.reverse()) await admin.from("members").delete().eq("id", id);
+  if (productId !== null) await admin.from("lesson_products").delete().eq("id", productId);
   if (classId !== null) await admin.from("classes").delete().eq("id", classId);
 });
 
@@ -76,7 +81,7 @@ test("로그인, 회원 목록, 개인레슨 등록, 첫 수업, 잔여 회차, 
   await page.getByPlaceholder("홍길동").fill(memberName);
   await page.getByPlaceholder("010-0000-0000").fill("01090000001");
   await page.getByRole("button", { name: "4회권" }).click();
-  const responsePromise = page.waitForResponse((response) => response.url().endsWith("/api/members") && response.request().method() === "POST");
+  const responsePromise = page.waitForResponse((response) => response.url().endsWith("/api/products/purchase") && response.request().method() === "POST");
   await page.getByRole("button", { name: "등록 완료", exact: true }).click();
   const response = await responsePromise;
   expect(response.status()).toBe(201);
@@ -90,7 +95,7 @@ test("로그인, 회원 목록, 개인레슨 등록, 첫 수업, 잔여 회차, 
 
   await page.getByRole("button", { name: "결제 확인", exact: true }).click();
   await page.getByRole("button", { name: "4회권" }).click();
-  await page.getByRole("button", { name: "4회권 결제 확인 완료" }).click();
+  await page.getByRole("button", { name: "결제 확인 완료" }).click();
   await expect(remainingCount(page, 7)).toBeVisible();
 });
 
@@ -100,8 +105,9 @@ test("수강생이 예약하고 운영자가 오늘 수업에서 기존 회차�
   await page.getByLabel("전화번호").fill("010-9000-0001");
   await page.getByRole("button", { name: "로그인", exact: true }).click();
   await expect(page.getByRole("heading", { name: `${memberName}님` })).toBeVisible();
-  await expect(page.getByText(/개인레슨 4회권 이용 중/)).toBeVisible();
+  await expect(page.getByText(/개인 4회권 이용 중 · 60분/)).toBeVisible();
 
+  if (bookingDate.slice(0, 7) !== koreaDateString().slice(0, 7)) await page.getByRole("button", { name: "다음 달", exact: true }).click();
   const bookingDateButton = page.getByRole("button", { name: bookingDate, exact: true });
   await expect(bookingDateButton).toBeEnabled();
   await bookingDateButton.click();
@@ -116,10 +122,13 @@ test("수강생이 예약하고 운영자가 오늘 수업에서 기존 회차�
   await page.getByRole("button", { name: "예약 완료", exact: true }).click();
   const reservationResponse = await reserveResponse;
   expect(reservationResponse.status(), await reservationResponse.text()).toBe(201);
-  await expect(page.getByText(`${bookingTime} · 수업 전`, { exact: true })).toBeVisible();
+  const [hour, minute] = bookingTime.split(":").map(Number);
+  const endTime = `${String(hour + 1).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+  await expect(page.getByText(`${bookingTime} ~ ${endTime} · 수업 전`, { exact: true })).toBeVisible();
 
   await login(page);
   await page.getByRole("link", { name: "수업 일정" }).click();
+  if (bookingDate.slice(0, 7) !== koreaDateString().slice(0, 7)) await page.getByRole("button", { name: "다음 달", exact: true }).click();
   const previousDate = addCalendarDays(bookingDate, -1);
   await page.getByRole("button", { name: new RegExp(`^${previousDate}`) }).click();
   await expect(page.getByText(memberName, { exact: true })).toBeHidden();
@@ -148,10 +157,10 @@ test("단체 회원 복수 요일 등록, 출석 등록과 취소", async ({ pag
   await modal.getByPlaceholder("홍길동").fill(groupMemberName);
   await modal.getByPlaceholder("010-0000-0000").fill("01090000002");
   await modal.getByRole("button", { name: "단체레슨" }).click();
-  await modal.locator("select").filter({ has: page.locator(`option[value=\"${classId}\"]`) }).selectOption(String(classId));
+  await modal.getByRole("button", { name: className, exact: true }).click();
   await modal.getByRole("button", { name: "월", exact: true }).click();
   await modal.getByRole("button", { name: "수", exact: true }).click();
-  const responsePromise = page.waitForResponse((response) => response.url().endsWith("/api/members") && response.request().method() === "POST");
+  const responsePromise = page.waitForResponse((response) => response.url().endsWith("/api/products/purchase") && response.request().method() === "POST");
   await modal.getByRole("button", { name: "등록 완료", exact: true }).click();
   const response = await responsePromise;
   expect(response.status()).toBe(201);
@@ -184,12 +193,13 @@ test("신규 회원 등록에서 스타터 패키지를 바로 등록한다", as
   const modal = page.getByRole("dialog", { name: "회원 등록" });
   await modal.getByPlaceholder("홍길동").fill(packageMemberName);
   await modal.getByPlaceholder("010-0000-0000").fill("01090000003");
+  await modal.getByRole("button", { name: "패키지", exact: true }).click();
   await modal.getByRole("button", { name: "스타터 패키지", exact: true }).click();
-  await expect(modal.getByText(/개인레슨 2회와.*단체레슨 4회/)).toBeVisible();
-  await modal.locator("select").filter({ has: page.locator(`option[value=\"${classId}\"]`) }).selectOption(String(classId));
+  await expect(modal.getByText(/개인 2회 \+ 단체 4회/)).toBeVisible();
+  await modal.getByLabel("단체반").selectOption(String(productId));
   await modal.getByRole("button", { name: "월", exact: true }).click();
   const responsePromise = page.waitForResponse(
-    (response) => response.url().endsWith("/api/members") && response.request().method() === "POST"
+    (response) => response.url().endsWith("/api/products/purchase") && response.request().method() === "POST"
   );
   await modal.getByRole("button", { name: "등록 완료", exact: true }).click();
   const response = await responsePromise;
@@ -197,8 +207,8 @@ test("신규 회원 등록에서 스타터 패키지를 바로 등록한다", as
   createdMemberIds.push((await response.json()).memberId);
 
   await expect(page.getByRole("heading", { name: packageMemberName })).toBeVisible();
-  await expect(page.getByText("개인 2회권")).toBeVisible();
-  await expect(page.getByText(`단체 ${className}`)).toBeVisible();
+  await expect(remainingCount(page, 2)).toBeVisible();
+  await expect(page.getByText(`단체 스타터 패키지 · ${className}`)).toBeVisible();
 });
 
 test("반의 capacity 값을 넘어도 회원을 등록한다", async ({ page }) => {
@@ -227,10 +237,10 @@ test("반의 capacity 값을 넘어도 회원을 등록한다", async ({ page })
   await modal.getByPlaceholder("홍길동").fill(overCapacityMemberName);
   await modal.getByPlaceholder("010-0000-0000").fill("01090019999");
   await modal.getByRole("button", { name: "단체레슨" }).click();
-  await modal.locator("select").filter({ has: page.locator(`option[value=\"${classId}\"]`) }).selectOption(String(classId));
+  await modal.getByRole("button", { name: className, exact: true }).click();
   await modal.getByRole("button", { name: "월", exact: true }).click();
   const createResponse = page.waitForResponse(
-    (response) => response.url().endsWith("/api/members") && response.request().method() === "POST"
+    (response) => response.url().endsWith("/api/products/purchase") && response.request().method() === "POST"
   );
   await modal.getByRole("button", { name: "등록 완료", exact: true }).click();
   const response = await createResponse;
@@ -255,7 +265,7 @@ test("회원 등록 누락·잘못된 연락처·중복 연락처를 차단한�
   await modal.getByPlaceholder("010-0000-0000").fill("01090000001");
   await modal.getByRole("button", { name: "4회권" }).click();
   const duplicateResponse = page.waitForResponse(
-    (response) => response.url().endsWith("/api/members") && response.request().method() === "POST"
+    (response) => response.url().endsWith("/api/products/purchase") && response.request().method() === "POST"
   );
   await modal.getByRole("button", { name: "등록 완료", exact: true }).click();
   expect((await duplicateResponse).status()).toBe(409);
@@ -301,6 +311,9 @@ test("로그아웃 후 보호 페이지와 API 접근이 차단된다", async ({
   await expect(page).toHaveURL(/\/login$/);
   const response = await page.request.get("/api/members", { maxRedirects: 0 });
   expect(response.status()).toBe(401);
+  expect((await page.request.get("/api/products")).status()).toBe(401);
+  expect((await page.request.post("/api/products", { data: {} })).status()).toBe(401);
+  expect((await page.request.post("/api/products/purchase", { data: {} })).status()).toBe(401);
 });
 
 test("모바일·태블릿 반응형, 모달 키보드, API 실패와 404 상태", async ({ page }) => {
@@ -348,4 +361,150 @@ test("비밀번호 재설정 입력 검증과 공개 접근", async ({ page }) =
   await page.getByLabel("새 비밀번호 확인").fill("password-two");
   await page.getByRole("button", { name: "비밀번호 변경" }).click();
   await expect(page.getByText("비밀번호가 서로 일치하지 않습니다.", { exact: true })).toBeVisible();
+});
+
+test("수강권 생성·수정·판매 중단과 구매 조건 보존", async ({ page }, testInfo) => {
+  await login(page);
+  const productName = `테스트회원_상품_${suffix}`;
+  const buyerName = `테스트회원_상품구매_${suffix}`;
+  let customProductId: number | null = null;
+  try {
+    await page.getByRole("link", { name: "수강권 관리" }).click();
+    await page.getByRole("button", { name: "수강권 추가", exact: true }).click();
+    let modal = page.getByRole("dialog", { name: "수강권 추가" });
+    await modal.getByLabel("수강권 이름").fill(productName);
+    await modal.getByLabel("가격 (원)").fill("210000");
+    await modal.getByLabel("수업 횟수", { exact: true }).fill("6");
+    await modal.getByLabel("유효기간 (주)").fill("7");
+    await modal.getByLabel("1회 수업 길이 (분)").fill("45");
+    const saved = page.waitForResponse(r => r.url().endsWith("/api/products") && r.request().method() === "POST");
+    await modal.getByRole("button", { name: "저장", exact: true }).click();
+    const response = await saved; expect(response.status()).toBe(200);
+    customProductId = (await response.json()).id;
+    await expect(page.getByRole("heading", { name: productName })).toBeVisible();
+    await page.screenshot({ path: testInfo.outputPath("products.png"), fullPage: true });
+    await page.getByRole("link", { name: "회원", exact: true }).click();
+    await page.getByRole("button", { name: "+ 회원 등록" }).click();
+    modal = page.getByRole("dialog", { name: "회원 등록" });
+    await modal.getByLabel("이름", { exact: true }).fill(buyerName);
+    await modal.getByLabel("연락처").fill("01090038888");
+    await modal.getByRole("button", { name: productName, exact: true }).click();
+    await expect(modal).toContainText("210,000원");
+    const purchased = page.waitForResponse(r => r.url().endsWith("/api/products/purchase") && r.request().method() === "POST");
+    await modal.getByRole("button", { name: "등록 완료", exact: true }).click();
+    const purchase = await purchased; expect(purchase.status()).toBe(201);
+    const { memberId } = await purchase.json(); createdMemberIds.push(memberId);
+    await expect(remainingCount(page, 6)).toBeVisible();
+    await expect(page.getByText("45분 · 7주")).toBeVisible();
+    await page.getByRole("link", { name: "수강권 관리" }).click();
+    await page.getByRole("button", { name: `${productName} 수정`, exact: true }).click();
+    modal = page.getByRole("dialog", { name: "수강권 수정" });
+    await modal.getByLabel("가격 (원)").fill("300000");
+    await modal.getByLabel("수업 횟수", { exact: true }).fill("9");
+    await modal.getByLabel("유효기간 (주)").fill("10");
+    await modal.getByLabel("1회 수업 길이 (분)").fill("90");
+    await modal.getByRole("button", { name: "저장", exact: true }).click();
+    await expect(modal).toBeHidden();
+    await page.goto(`/members/${memberId}`);
+    await expect(remainingCount(page, 6)).toBeVisible();
+    await expect(page.getByText("45분 · 7주")).toBeVisible();
+    await page.getByRole("button", { name: "결제 확인", exact: true }).click();
+    modal = page.getByRole("dialog");
+    await modal.getByRole("button", { name: productName, exact: true }).click();
+    await expect(modal).toContainText("300,000원");
+    await modal.getByRole("button", { name: "결제 확인 완료" }).click();
+    await expect(remainingCount(page, 15)).toBeVisible();
+    await expect(page.getByText("90분 · 10주")).toBeVisible();
+    await page.getByRole("link", { name: "수강권 관리" }).click();
+    await page.getByRole("button", { name: `${productName} 수정`, exact: true }).click();
+    modal = page.getByRole("dialog", { name: "수강권 수정" });
+    await modal.getByLabel("판매 상태").selectOption("false");
+    await modal.getByRole("button", { name: "저장", exact: true }).click();
+    await expect(modal).toBeHidden();
+    await page.goto(`/members/${memberId}`);
+    await expect(remainingCount(page, 15)).toBeVisible();
+    await page.getByRole("button", { name: "결제 확인", exact: true }).click();
+    await expect(page.getByRole("dialog").getByRole("button", { name: productName, exact: true })).toHaveCount(0);
+    const offered = await page.request.get("/api/products");
+    expect((await offered.json()).products.some((p: { id: number }) => p.id === customProductId)).toBe(false);
+  } finally {
+    const admin = createClient(env!.url, env!.serviceRoleKey);
+    // Remove only this test's purchases before deleting their referenced product.
+    const members = await admin.from("members").select("id").eq("name", buyerName);
+    for (const member of members.data ?? []) await admin.from("members").delete().eq("id", member.id);
+    if (customProductId) await admin.from("lesson_products").delete().eq("id", customProductId);
+  }
+});
+
+test("미판매 수강권은 삭제하고 판매 중단 수강권은 별도 목록에 표시한다", async ({ page }) => {
+  await login(page);
+  await page.getByRole("link", { name: "수강권 관리" }).click();
+  const name = `테스트회원_삭제_${suffix}`;
+  let productId: number | null = null;
+  const admin = createClient(env!.url, env!.serviceRoleKey);
+  try {
+    await page.getByRole("button", { name: "수강권 추가" }).click();
+    let modal = page.getByRole("dialog", { name: "수강권 추가" });
+    await modal.getByLabel("수강권 이름").fill(name);
+    await modal.getByLabel("판매 상태").selectOption("false");
+    const saved = page.waitForResponse(r => r.url().endsWith("/api/products") && r.request().method() === "POST");
+    await modal.getByRole("button", { name: "저장", exact: true }).click();
+    productId = (await (await saved).json()).id;
+    await expect(page.getByRole("heading", { name })).toBeVisible();
+    await page.getByRole("button", { name: /판매 중 \d+/, exact: true }).click();
+    await expect(page.getByRole("heading", { name })).toHaveCount(0);
+    await page.getByRole("button", { name: /판매 중단 \d+/, exact: true }).click();
+    await page.getByRole("button", { name: `${name} 수정` }).click();
+    modal = page.getByRole("dialog", { name: "수강권 수정" });
+    await expect(modal.getByRole("button", { name: "삭제" })).toBeVisible();
+    page.once("dialog", dialog => void dialog.accept());
+    await modal.getByRole("button", { name: "삭제" }).click();
+    await expect(page.getByRole("heading", { name })).toHaveCount(0);
+    expect((await admin.from("lesson_products").select("id").eq("id", productId)).data).toEqual([]);
+  } finally {
+    if (productId) await admin.from("lesson_products").delete().eq("id", productId);
+  }
+});
+
+test("단체반 요일·시작시간과 판매 상태를 관리한다", async ({ page }) => {
+  await login(page);
+  const name = `테스트회원_시간표_${suffix}`;
+  const admin = createClient(env!.url, env!.serviceRoleKey);
+  try {
+    await page.getByRole("link", { name: "수강권 관리" }).click();
+    await page.getByRole("button", { name: "수강권 추가", exact: true }).click();
+    let modal = page.getByRole("dialog", { name: "수강권 추가" });
+    await modal.getByLabel("수강 종류").selectOption("group");
+    await modal.getByLabel("수강권 이름").fill(name);
+    await modal.getByLabel("가격 (원)").fill("120000");
+    await modal.getByLabel("월", { exact: true }).check();
+    await modal.getByLabel("월 시작시간").fill("07:00");
+    await modal.getByLabel("1회 수업 길이 (분)").fill("45");
+    await modal.getByRole("button", { name: "저장", exact: true }).click();
+    await expect(modal).toBeHidden();
+    const card = page.getByRole("article").filter({ has: page.getByRole("heading", { name, exact: true }) });
+    await expect(card).toContainText("월 07:00");
+    await expect(card).toContainText("1회 수업 45분");
+    await card.getByRole("button", { name: `${name} 수정`, exact: true }).click();
+    modal = page.getByRole("dialog", { name: "수강권 수정" });
+    await modal.getByLabel("월", { exact: true }).uncheck();
+    await modal.getByLabel("화", { exact: true }).check();
+    await modal.getByLabel("화 시작시간").fill("08:00");
+    await modal.getByLabel("판매 상태").selectOption("false");
+    await modal.getByRole("button", { name: "저장", exact: true }).click();
+    await expect(modal).toBeHidden();
+    await expect(card).toContainText("화 08:00");
+    await expect(card.getByText("판매 중단", { exact: true })).toBeVisible();
+    const product = await admin.from("lesson_products").select("class_id").eq("name", name).single();
+    const schedules = await admin.from("class_schedules").select("weekday,start_time,active").eq("class_id", product.data!.class_id);
+    expect(schedules.data).toEqual(expect.arrayContaining([
+      { weekday: 1, start_time: "07:00:00", active: false }, { weekday: 2, start_time: "08:00:00", active: true }
+    ]));
+  } finally {
+    const products = await admin.from("lesson_products").select("id,class_id").eq("name", name);
+    for (const product of products.data ?? []) {
+      expect((await admin.from("lesson_products").delete().eq("id", product.id)).error).toBeNull();
+      expect((await admin.from("classes").delete().eq("id", product.class_id)).error).toBeNull();
+    }
+  }
 });

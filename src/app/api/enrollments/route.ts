@@ -72,12 +72,13 @@ export async function GET(request: NextRequest) {
       enrollmentId: row.enrollments.id,
       memberId: row.enrollments.members.id,
       memberName: row.enrollments.members.name,
+      classId: row.enrollments.class_id,
       kind: row.enrollments.kind,
       className: row.enrollments.kind === "group" ? row.enrollments.classes.name : null,
-      label:
+      label: row.product_name ?? (
         row.enrollments.kind === "solo"
           ? `개인 ${row.plan ?? row.total_count}회권${row.enrollments.package_id ? " (패키지)" : ""}`
-          : `단체 ${row.enrollments.classes.name}${row.enrollments.package_id ? " (패키지)" : ""}`,
+          : `단체 ${row.enrollments.classes.name}${row.enrollments.package_id ? " (패키지)" : ""}`),
       statusText: statusText.text,
       tone: statusText.tone,
       remain: row.total_count - row.used_count,

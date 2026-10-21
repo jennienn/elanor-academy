@@ -12,8 +12,8 @@ export function bookingTimeSlots(): number[] {
 
 export function soloBookingValidEnd(
   paymentDate: string,
-  plan: 4 | 8 | 12 | null,
-  validWeeks = plan === null ? undefined : WEEKS_BY_PLAN[plan]
+  plan: number | null,
+  validWeeks = plan === null ? undefined : WEEKS_BY_PLAN[plan as keyof typeof WEEKS_BY_PLAN]
 ): string {
   if (validWeeks === undefined) {
     throw new Error("개인레슨 예약 유효 기간을 확인해주세요.");

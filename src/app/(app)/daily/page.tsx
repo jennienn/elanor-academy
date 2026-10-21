@@ -7,12 +7,12 @@ import { Modal } from "@/components/Modal";
 
 interface SessionRow { session_index: number; status: "pending" | "done" | "auto" }
 interface ReservedLesson {
-  id: string; cycleId: string; bookingDate: string; startMinute: number;
-  status: "confirmed" | "completed"; plan: 4 | 8 | 12; remain: number; name: string; phone: string;
+  id: string; cycleId: string; bookingDate: string; startMinute: number; durationMinutes: number;
+  status: "confirmed" | "completed"; plan: number | null; productName: string | null; remain: number; name: string; phone: string;
 }
 interface CalendarCell { date: string; day: number }
 interface BookingBlock {
-  id: string; blockDate: string; startMinute: number; endMinute: number;
+  id: string; blockDate: string; startMinute: number; durationMinutes: number; endMinute: number;
 }
 
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
@@ -267,8 +267,8 @@ export default function DailyPage() {
               <ul className="schedule-booking-list">
                 {selectedBookings.map((booking) => (
                   <li key={booking.id} className="schedule-booking-row">
-                    <div className="schedule-booking-time">{formatTime(booking.startMinute)}</div>
-                    <div className="schedule-booking-person"><strong>{booking.name}</strong><span>{booking.phone} · {booking.plan}회권 · 잔여 {booking.remain}회</span></div>
+                    <div className="schedule-booking-time">{formatTime(booking.startMinute)} ~ {formatTime(booking.startMinute + booking.durationMinutes)}</div>
+                    <div className="schedule-booking-person"><strong>{booking.name}</strong><span>{booking.phone} · {booking.productName ?? `${booking.plan ?? ""}회권`} · 잔여 {booking.remain}회</span></div>
                     <div className="schedule-booking-action">
                       {booking.status === "completed" ? <span className="booking-completed-status">✓ 완료</span> : (
                         <button type="button" className="secondary" disabled={submittingId === booking.id}

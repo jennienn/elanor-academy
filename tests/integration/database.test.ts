@@ -895,7 +895,7 @@ describe.runIf(env !== null)("Supabase 통합 시나리오", () => {
 
   it("예약 완료 처리는 예약 상태와 기존 개인레슨 회차를 함께 갱신한다", async () => {
     const paymentDate = koreaDateString();
-    const bookingDate = addCalendarDays(paymentDate, 7);
+    const bookingDate = addCalendarDays(paymentDate, 14);
     const memberId = await createMember("예약완료");
     const created = await authenticated
       .rpc("create_enrollment_with_cycle_atomic", {
@@ -978,7 +978,7 @@ describe.runIf(env !== null)("Supabase 통합 시나리오", () => {
   it("취소 마감 전 예약 취소는 잔여 횟수를 차감하지 않는다", async () => {
     const memberId = await createMember("정상예약취소");
     const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul" }).format(new Date());
-    const bookingDate = addCalendarDays(today, 7);
+    const bookingDate = addCalendarDays(today, 21);
     const created = await authenticated
       .rpc("create_enrollment_with_cycle_atomic", {
         p_member_id: memberId,
@@ -1101,7 +1101,7 @@ describe.runIf(env !== null)("Supabase 통합 시나리오", () => {
 
   it("22:00 개인레슨 예약을 허용한다", async () => {
     const paymentDate = koreaDateString();
-    const bookingDate = futureWeekday(6);
+    const bookingDate = futureWeekday(6, 14);
     const memberId = await createMember("22시예약");
     const created = await authenticated
       .rpc("create_enrollment_with_cycle_atomic", {

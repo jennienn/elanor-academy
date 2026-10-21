@@ -17,6 +17,7 @@ interface EnrollmentListItem {
   memberName: string;
   kind: "solo" | "group";
   className: string | null;
+  classId: number | null;
   label: string;
   statusText: string;
   tone: Tone;
@@ -52,13 +53,13 @@ async function fetchTodayGroupCount(): Promise<number> {
       const { schedules } = await apiFetch<{ schedules: { id: number; weekday: number }[] }>(
         `/api/classes/${cls.id}/schedules`
       );
-      const todaySchedule = schedules.find((s) => s.weekday === todayWeekday);
-      if (!todaySchedule) continue;
+      const todaySchedules = schedules.filter((s) => s.weekday === todayWeekday);
+      if (!todaySchedules.length) continue;
 
       const { items } = await apiFetch<{ items: { scheduleIds: number[] }[] }>(
         `/api/attendance?className=${encodeURIComponent(cls.name)}&date=${todayStr}`
       );
-      count += items.filter((i) => i.scheduleIds.includes(todaySchedule.id)).length;
+      count += items.filter((i) => todaySchedules.some(s => i.scheduleIds.includes(s.id))).length;
     }
     return count;
   } catch {
@@ -262,6 +263,7 @@ export default function HomePage() {
           enrollmentId={renewGroup.enrollmentId}
           memberName={renewGroup.memberName}
           className={renewGroup.className ?? ""}
+          classId={renewGroup.classId!}
         />
       )}
     </div>

@@ -5,7 +5,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 export async function GET() {
   const supabase = await createSupabaseServerClient();
   const [{ data: classes, error: classesError }, { data: enrollments, error: enrollmentsError }] = await Promise.all([
-    supabase.from("classes").select("*").eq("active", true).order("id"),
+    supabase.from("classes").select("*").order("id"),
     supabase.from("enrollments").select("class_id,member_id").eq("kind", "group").eq("status", "active")
   ]);
   if (classesError || enrollmentsError) {
@@ -22,7 +22,7 @@ export async function GET() {
     memberIdsByClass.set(enrollment.class_id, memberIds);
   }
   return NextResponse.json({
-    classes: (classes ?? []).map((classItem) => ({
+    classes: (classes ?? []).filter(c => c.active || memberIdsByClass.has(c.id)).map((classItem) => ({
       ...classItem,
       member_count: memberIdsByClass.get(classItem.id)?.size ?? 0
     }))

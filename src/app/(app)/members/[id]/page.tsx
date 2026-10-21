@@ -23,6 +23,7 @@ interface Payment {
 
 interface CycleScheduleLink {
   schedule_id: number;
+  class_schedules: { weekday: number; start_time: string | null; duration_minutes: number } | null;
 }
 
 interface AttendanceLog {
@@ -33,7 +34,10 @@ interface AttendanceLog {
 interface Cycle {
   id: string;
   enrollment_id: string;
-  plan: 4 | 8 | 12 | null;
+  plan: number | null;
+  product_name: string | null;
+  duration_minutes: number;
+  valid_weeks: number | null;
   total_count: number;
   used_count: number;
   first_class_date: string | null;
@@ -216,7 +220,7 @@ function SoloEnrollmentCard({
       <div className="enrollment-card-header">
         <div>
           <span className={cycle.plan ? `badge plan-${cycle.plan}` : "badge mute"}>
-            개인 {cycle.plan ?? cycle.total_count}회권
+            {cycle.product_name ?? `개인 ${cycle.plan ?? cycle.total_count}회권`}
           </span>
           {enrollment.package_id != null && <PackageTag />}
           {enrollment.status === "ended" && (
@@ -260,6 +264,7 @@ function SoloEnrollmentCard({
       </div>
 
       <dl className="membership-info-rows">
+        <div><dt>수업 길이 · 유효기간</dt><dd>{cycle.duration_minutes}분 · {cycle.valid_weeks ?? "-"}주</dd></div>
         <div>
           <dt>첫 수업일</dt>
           <dd>{cycle.first_class_date ?? "첫 수업 전"}</dd>
@@ -353,7 +358,7 @@ function GroupEnrollmentCard({
     <div className="panel enrollment-card">
       <div className="enrollment-card-header">
         <div>
-          <span className="badge type-group">단체 {enrollment.classes?.name ?? "-"}</span>
+          <span className="badge type-group">단체 {cycle.product_name ?? enrollment.classes?.name ?? "-"}</span>
           {isPackage && <PackageTag />}
           {enrollment.status === "ended" && (
             <span className="badge mute" style={{ marginLeft: 6 }}>
@@ -415,6 +420,10 @@ function GroupEnrollmentCard({
         </div>
       )}
 
+      <p className="group-secondary-info">구매한 시간표: {cycle.cycle_schedules.map(link => {
+        const s = link.class_schedules;
+        return s ? `${["일", "월", "화", "수", "목", "금", "토"][s.weekday]} ${s.start_time?.slice(0, 5) ?? "시간 미설정"} · ${s.duration_minutes}분` : "";
+      }).join(" / ")}</p>
       <p className="group-secondary-info">
         최근 출석일 <span>{lastAttendance ? formatCalendarDate(lastAttendance) : "-"}</span>
         <span className="group-info-divider">·</span>
@@ -640,6 +649,7 @@ export default function MemberDetailPage() {
           enrollmentId={renewTarget.enrollment.id}
           memberName={member.name}
           className={renewTarget.enrollment.classes?.name ?? ""}
+          classId={renewTarget.enrollment.class_id!}
         />
       )}
     </div>

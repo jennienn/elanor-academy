@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
   const supabase = await createSupabaseServerClient();
   let query = supabase
     .from("solo_bookings")
-    .select("id,booking_date,start_minute,status,cycle_id,enrollment_cycles!inner(plan,total_count,used_count,enrollments!inner(members!inner(name,phone)))")
+    .select("id,booking_date,start_minute,duration_minutes,status,cycle_id,enrollment_cycles!inner(plan,product_name,total_count,used_count,enrollments!inner(members!inner(name,phone)))")
     .in("status", ["confirmed", "completed"]);
 
   if (validDate) {
@@ -33,7 +33,8 @@ export async function GET(request: NextRequest) {
 
   const bookings = (data ?? []).map((row) => {
     const cycle = row.enrollment_cycles as unknown as {
-      plan: number;
+      plan: number | null;
+      product_name: string | null;
       total_count: number;
       used_count: number;
       enrollments: { members: { name: string; phone: string } };
@@ -43,8 +44,10 @@ export async function GET(request: NextRequest) {
       bookingDate: row.booking_date,
       cycleId: row.cycle_id,
       startMinute: row.start_minute,
+      durationMinutes: row.duration_minutes,
       status: row.status,
       plan: cycle.plan,
+      productName: cycle.product_name,
       remain: cycle.total_count - cycle.used_count,
       name: cycle.enrollments.members.name,
       phone: cycle.enrollments.members.phone

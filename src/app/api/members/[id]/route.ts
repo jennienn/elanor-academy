@@ -13,7 +13,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const { data, error } = await supabase
     .from("members")
     .select(
-      "id, name, phone, enrollments(*, classes(name), enrollment_cycles(*, payments(*), cycle_schedules(schedule_id), attendance_logs(date, attended)))"
+      "id, name, phone, enrollments(*, classes(name), enrollment_cycles(*, payments(*), cycle_schedules(schedule_id, class_schedules(weekday,start_time,duration_minutes)), attendance_logs(date, attended)))"
     )
     .eq("id", id)
     .single();
