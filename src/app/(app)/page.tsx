@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api-client";
 import { RenewSoloModal } from "@/components/RenewSoloModal";
 import { RenewGroupModal } from "@/components/RenewGroupModal";
+import { BookingActivityBell } from "@/components/BookingActivityBell";
 
 type Tone = "danger" | "warning" | "muted";
 type CardFilter = "unpaid" | "unsent";
@@ -153,7 +154,8 @@ export default function HomePage() {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
-    <div className="app-page">
+    <div className="app-page home-page">
+      <div className="app-toolbar"><BookingActivityBell /></div>
       <header className="app-page-header">
         <div>
           <h1>결제 확인</h1>

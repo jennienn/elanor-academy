@@ -137,6 +137,7 @@ test("수강생이 예약하고 운영자가 오늘 수업에서 기존 회차�
   await expect(page.locator(".booking-activity-count")).toHaveCount(0);
   await expect(createdActivity).not.toHaveClass(/unread/);
   await page.getByRole("link", { name: "수업 일정" }).click();
+  await expect(page.getByRole("button", { name: /예약 알림/ })).toHaveCount(0);
   if (bookingDate.slice(0, 7) !== koreaDateString().slice(0, 7)) await page.getByRole("button", { name: "다음 달", exact: true }).click();
   const previousDate = addCalendarDays(bookingDate, -1);
   await page.getByRole("button", { name: new RegExp(`^${previousDate}`) }).click();

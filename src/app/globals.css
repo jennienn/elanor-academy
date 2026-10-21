@@ -134,7 +134,7 @@ textarea {
 
 .main {
   width: 100%;
-  padding: 12px 48px 64px;
+  padding: 44px 48px 64px;
 }
 .main > * {
   width: min(100%, 1180px);
@@ -142,6 +142,8 @@ textarea {
   margin-left: auto;
 }
 .app-toolbar { height: 32px; display: flex; justify-content: flex-end; position: relative; z-index: 60; }
+.home-page { position: relative; }
+.home-page .app-toolbar { position: absolute; top: -32px; right: 0; width: 100%; }
 .booking-activity { position: relative; }
 .booking-activity-trigger { position: relative; display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--text-body); cursor: pointer; }
 .booking-activity-trigger:hover, .booking-activity-trigger[aria-expanded="true"] { background: var(--accent-soft); }
@@ -1493,7 +1495,7 @@ input::placeholder {
     padding: 8px 12px;
   }
   .main {
-    padding: 8px 20px 40px;
+    padding: 40px 20px 40px;
   }
   .panel {
     min-width: 0;
@@ -1529,7 +1531,7 @@ input::placeholder {
     display: none;
   }
   .main {
-    padding: 8px 12px 32px;
+    padding: 40px 12px 32px;
   }
   .panel {
     padding: 18px 14px;
