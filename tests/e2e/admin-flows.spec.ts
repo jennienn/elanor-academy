@@ -127,6 +127,15 @@ test("수강생이 예약하고 운영자가 오늘 수업에서 기존 회차�
   await expect(page.getByText(`${bookingTime} ~ ${endTime} · 수업 전`, { exact: true })).toBeVisible();
 
   await login(page);
+  await page.getByRole("button", { name: /예약 알림, 미확인 [1-9]/ }).click();
+  const activityPanel = page.getByRole("region", { name: "예약 알림" });
+  const createdActivity = activityPanel.locator(".booking-activity-item", { hasText: `${memberName}님이 예약했어요` });
+  await expect(createdActivity).toContainText(bookingDate.replaceAll("-", "."));
+  await expect(createdActivity).toContainText(`${hour < 12 ? "오전" : "오후"} ${hour % 12 || 12}시${minute ? ` ${minute}분` : ""}`);
+  await expect(createdActivity).not.toContainText(endTime);
+  await expect(createdActivity.locator("time")).toHaveCount(0);
+  await expect(page.locator(".booking-activity-count")).toHaveCount(0);
+  await expect(createdActivity).not.toHaveClass(/unread/);
   await page.getByRole("link", { name: "수업 일정" }).click();
   if (bookingDate.slice(0, 7) !== koreaDateString().slice(0, 7)) await page.getByRole("button", { name: "다음 달", exact: true }).click();
   const previousDate = addCalendarDays(bookingDate, -1);
@@ -147,6 +156,30 @@ test("수강생이 예약하고 운영자가 오늘 수업에서 기존 회차�
   await page.getByRole("button", { name: "로그아웃" }).click();
   await expect(page.getByRole("button", { name: "로그인", exact: true })).toBeVisible();
   expect((await page.request.get("/api/booking")).status()).toBe(401);
+});
+
+test("회원의 예약 취소가 운영자 알림에 표시된다", async ({ page }) => {
+  await page.goto("/booking");
+  await page.getByLabel("이름").fill(memberName);
+  await page.getByLabel("전화번호").fill("010-9000-0001");
+  await page.getByRole("button", { name: "로그인", exact: true }).click();
+  const date = addCalendarDays(bookingDate, 1);
+  if (date.slice(0, 7) !== koreaDateString().slice(0, 7)) await page.getByRole("button", { name: "다음 달", exact: true }).click();
+  await page.getByRole("button", { name: date, exact: true }).click();
+  await page.locator(".reservation-times button:enabled").first().click();
+  const reserved = page.waitForResponse(response => response.url().endsWith("/api/booking") && response.request().method() === "POST");
+  await page.getByRole("button", { name: "예약 완료", exact: true }).click();
+  const result = await reserved;
+  expect(result.status()).toBe(201);
+  page.once("dialog", dialog => void dialog.accept());
+  await page.locator(".reservation-list li", { hasText: "수업 전" }).getByRole("button", { name: "취소" }).click();
+  await expect(page.getByText("예약이 취소되었습니다. 잔여 횟수는 차감되지 않았습니다.")).toBeVisible();
+
+  await login(page);
+  await page.getByRole("button", { name: /예약 알림, 미확인 [1-9]/ }).click();
+  const panel = page.getByRole("region", { name: "예약 알림" });
+  await expect(panel.locator(".booking-activity-item", { hasText: `${memberName}님이 예약을 취소했어요` })).toContainText(date.replaceAll("-", "."));
+  await expect(page.locator(".booking-activity-count")).toHaveCount(0);
 });
 
 test("단체 회원 복수 요일 등록, 출석 등록과 취소", async ({ page }) => {

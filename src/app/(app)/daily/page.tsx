@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch } from "@/lib/api-client";
 import { koreaDateString } from "@/lib/business-rules";
 import { Modal } from "@/components/Modal";
@@ -47,6 +47,8 @@ function selectedDateLabel(date: string) {
 export default function DailyPage() {
   const today = koreaDateString();
   const [visibleMonth, setVisibleMonth] = useState(monthOf(today));
+  const currentMonth = useRef(visibleMonth);
+  currentMonth.current = visibleMonth;
   const [selectedDate, setSelectedDate] = useState(today);
   const [search, setSearch] = useState("");
   const [bookings, setBookings] = useState<ReservedLesson[]>([]);
@@ -63,21 +65,24 @@ export default function DailyPage() {
   const [blockError, setBlockError] = useState<string | null>(null);
 
   const loadMonth = useCallback(async () => {
+    const month = visibleMonth;
     setLoading(true);
     setError(null);
     try {
       const [bookingResult, blockResult] = await Promise.all([
-        apiFetch<{ bookings: ReservedLesson[] }>(`/api/bookings?month=${visibleMonth}`),
-        apiFetch<{ blocks: BookingBlock[] }>(`/api/booking-blocks?month=${visibleMonth}`)
+        apiFetch<{ bookings: ReservedLesson[] }>(`/api/bookings?month=${month}`),
+        apiFetch<{ blocks: BookingBlock[] }>(`/api/booking-blocks?month=${month}`)
       ]);
+      if (currentMonth.current !== month) return;
       setBookings(bookingResult.bookings);
       setBlocks(blockResult.blocks);
     } catch (caught) {
+      if (currentMonth.current !== month) return;
       setBookings([]);
       setBlocks([]);
       setError(caught instanceof Error ? caught.message : "예약 일정을 불러오지 못했습니다.");
     } finally {
-      setLoading(false);
+      if (currentMonth.current === month) setLoading(false);
     }
   }, [visibleMonth]);
 
